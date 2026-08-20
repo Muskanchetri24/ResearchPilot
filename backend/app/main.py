@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.api.v1.router import api_router
+from app.models.schemas import HealthCheck
 
 app = FastAPI(
     title="ResearchPilot API",
@@ -26,6 +27,7 @@ app.include_router(api_router, prefix="/api/v1")
 
 @app.get("/")
 def root():
+
     return {
         "project": "ResearchPilot",
         "status": "running",
@@ -33,12 +35,14 @@ def root():
     }
 
 
-@app.get("/health")
+@app.get("/health", response_model=HealthCheck, tags=["System"])
 def health():
-    return {
-        "status": "healthy",
-        "environment": settings.ENVIRONMENT,
-    }
+    return HealthCheck(
+        status="ok",
+        version="0.1.0",
+        environment=settings.ENVIRONMENT,
+    )
+
 
 
 if __name__ == "__main__":
