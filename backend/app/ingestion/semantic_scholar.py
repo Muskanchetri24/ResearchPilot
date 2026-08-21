@@ -37,6 +37,9 @@ DEFAULT_AUTHOR_FIELDS = [
 ]
 
 
+BASE_URL = "https://api.semanticscholar.org/graph/v1/paper/search"
+
+
 class SemanticScholarClient:
     """
     Comprehensive client for the Semantic Scholar Academic Graph API (v1).
@@ -45,6 +48,7 @@ class SemanticScholarClient:
     """
 
     BASE_URL = "https://api.semanticscholar.org/graph/v1"
+
 
     def __init__(
         self,
