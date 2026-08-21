@@ -1,4 +1,6 @@
+import io
 import os
+from pypdf import PdfReader
 from typing import Dict, Any, List, Optional
 from fastapi import APIRouter, HTTPException, status, Query, File, UploadFile, Form
 from app.models.schemas import (
@@ -151,15 +153,22 @@ async def upload_pdf_document(
 
         if file:
             pdf_bytes = await file.read()
-            # Save raw file to data/raw/
+            # Save raw PDF file to data/raw/
             save_path = os.path.join("./data/raw", file.filename)
             os.makedirs("./data/raw", exist_ok=True)
             with open(save_path, "wb") as f:
                 f.write(pdf_bytes)
-            
-            # Simple text extraction fallback from bytes
-            extracted_text = pdf_bytes.decode("utf-8", errors="ignore")
-            text_content = extracted_text if len(extracted_text.strip()) > 50 else f"Paper content extracted from {file.filename}."
+
+            # Use pypdf to extract readable text page by page
+            try:
+                reader = PdfReader(io.BytesIO(pdf_bytes))
+                extracted_pages = [page.extract_text() for page in reader.pages if page.extract_text()]
+                text_content = "\n".join(extracted_pages)
+            except Exception as pdf_err:
+                text_content = f"PDF parsing notice for {file.filename}: {str(pdf_err)}"
+
+            if not text_content.strip():
+                text_content = f"Paper document title: {doc_title}. Extracted content from PDF file {file.filename}."
         elif content:
             text_content = content
         else:
@@ -181,5 +190,6 @@ async def upload_pdf_document(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error uploading and processing paper: {str(e)}",
         )
+
 
 
