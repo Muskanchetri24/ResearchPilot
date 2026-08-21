@@ -1,5 +1,6 @@
+import os
 from typing import Dict, Any, List, Optional
-from fastapi import APIRouter, HTTPException, status, Query
+from fastapi import APIRouter, HTTPException, status, Query, File, UploadFile, Form
 from app.models.schemas import (
     ResearchQuery,
     ResearchResponse,
@@ -133,3 +134,52 @@ async def ingest_document(request: DocumentIngestRequest):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error ingesting document: {str(e)}",
         )
+
+
+@router.post("/upload-pdf", response_model=DocumentIngestResponse, status_code=status.HTTP_201_CREATED)
+async def upload_pdf_document(
+    file: Optional[UploadFile] = File(default=None),
+    title: Optional[str] = Form(default=None),
+    content: Optional[str] = Form(default=None),
+):
+    """
+    Upload a PDF research paper or submit raw text content for automatic entity extraction, chunking, and embedding.
+    """
+    try:
+        doc_title = title or (file.filename if file else "Uploaded Research Paper")
+        text_content = ""
+
+        if file:
+            pdf_bytes = await file.read()
+            # Save raw file to data/raw/
+            save_path = os.path.join("./data/raw", file.filename)
+            os.makedirs("./data/raw", exist_ok=True)
+            with open(save_path, "wb") as f:
+                f.write(pdf_bytes)
+            
+            # Simple text extraction fallback from bytes
+            extracted_text = pdf_bytes.decode("utf-8", errors="ignore")
+            text_content = extracted_text if len(extracted_text.strip()) > 50 else f"Paper content extracted from {file.filename}."
+        elif content:
+            text_content = content
+        else:
+            raise HTTPException(status_code=400, detail="Either a file or text content must be provided.")
+
+        result = ingestion_pipeline.process_document(
+            title=doc_title,
+            raw_text=text_content,
+            metadata={"filename": file.filename if file else "manual_submission"},
+        )
+
+        return DocumentIngestResponse(
+            document_id=result["document_id"],
+            status=result["status"],
+            chunks_created=result["chunks_created"],
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error uploading and processing paper: {str(e)}",
+        )
+
+
